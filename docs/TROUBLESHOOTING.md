@@ -176,17 +176,17 @@ Things that bit us or contributors, so they don't bite you. Commands use `tools/
   and `pm install` hung, then failed with `INSTALL_FAILED_VERIFICATION_FAILURE`, while it targeted
   SDK 29. It targets 34 now; if you built an old checkout, rebuild.
 - **`pm install` fails with `INSTALL_FAILED_OLDER_SDK`** on a set older than the launcher: the APK's
-  `minSdk` is a compile-time floor, so a TV on Android 7.0/7.1 (SDK 24/25) cannot take the published
+  `minSdk` is a compile-time floor, so a TV below Android 6.0 (SDK 23) cannot take this fork's
   build at all ([#576](https://github.com/Gathin23/cleanyourtv/issues/576)). Read both numbers before
   changing anything: `tools/tv.py 'getprop ro.build.version.sdk'` and
-  `grep minSdk launcher/app/build.gradle` (26, i.e. Android 8.0, at the time of writing).
-  `launcher/build-and-install.sh` now asks the TV first and stops with both numbers, so nothing is
+  `grep minSdk launcher/app/build.gradle` (23, i.e. Android 6.0, in this fork).
+  `launcher/build-and-install.sh` asks the TV first and stops with both numbers, so nothing is
   built or pushed for a set that will refuse it; `build-and-install.ps1` only reports it after
-  `pm install`, which fails safely with the stock launcher untouched. Lowering `minSdk` is a source
-  change, not a setting, and it means maintaining your own copy: the launcher uses AndroidX and
-  framework calls newer than API 25, so expect compile errors or a launcher that starts and then
-  crashes. An APK produced by rebuilding the project elsewhere (an assistant, an online builder, a
-  "rebuilt for API 25" zip from a forum) is not something this repository can check, and the install
+  `pm install`, which fails safely with the stock launcher untouched. This fork already carries the
+  API 23 fallbacks (locales, TV input names, network callbacks, changed packages, hardware bitmaps
+  and font resources) and desugaring, so build it here rather than using an APK from another tree:
+  an APK produced by rebuilding the project elsewhere (an assistant, an online builder, a
+  "rebuilt for API 23" zip from a forum) is not something this repository can check, and the install
   scripts only push the APK they compiled themselves: a build signed with another key does not
   install over this one (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`), so uninstall the old one first if you
   go that way, and keep the stock launcher enabled until the new one really starts. On a set below
@@ -254,7 +254,7 @@ Things that bit us or contributors, so they don't bite you. Commands use `tools/
   Realtek `rtd298x`, Android 4.4.2, SDK 19). 17 packages were disabled over Ethernet ADB, each
   answered `new state: disabled-user` and `pm list packages -d` read back all 17; the factory
   launcher `com.haiersoft.launcherproject2995hk` was among them with no replacement, because the
-  launcher here needs Android 8.0. After the power cycle the set sat on the green robot and
+  launcher here needs Android 6.0 (API 23) where this set is SDK 19. After the power cycle the set sat on the green robot and
   `INICIALIZANDO` for 20+ minutes, across a hard power cut and another off/on from the remote. The
   reporter then isolated it: disabling that one package reproduces the hang and re-enabling it boots
   the set, so the batch size and the power cut were not the cause. Two things to carry away. First,

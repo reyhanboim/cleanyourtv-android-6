@@ -124,7 +124,7 @@ class CoopNoteTest(unittest.TestCase):
 
     def test_launcher_half_is_described_as_impossible(self):
         body = flat(self.text)
-        self.assertIn("minSdk 26", body)
+        self.assertIn("minSdk 23", body)
         self.assertIn("SDK 19", body)
 
     def test_guard_behaviour_is_not_promised_for_this_set(self):

@@ -217,7 +217,7 @@ class Android7DocsTest(unittest.TestCase):
     def test_readme_states_the_launcher_requirement_with_a_pointer(self):
         start = self.readme.index("## The launcher")
         section = self.readme[start:start + 1600]
-        self.assertIn("API 26", section)
+        self.assertIn("API 23", section)
         self.assertIn("launcher/app/build.gradle", section)
         self.assertIn("docs/TROUBLESHOOTING.md", section)
 

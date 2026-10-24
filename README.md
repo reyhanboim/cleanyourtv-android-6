@@ -498,10 +498,10 @@ apps), which is why the report names that loss per package instead of calling it
 
 ## The launcher
 
-A small native home screen for Android TV: **about 497 KB**, plain Java, built for TVs with 1 GB of RAM.
+A small native home screen for Android TV: **about 720 KB**, plain Java, built for TVs with 1 GB of RAM.
 No blur, no video, no network permission, no background services.
 
-The **TV** needs Android 8.0 (API 26) or newer: `minSdk` is a compile-time floor in
+The **TV** needs Android 6.0 (API 23) or newer in this fork: `minSdk` is a compile-time floor in
 [`launcher/app/build.gradle`](launcher/app/build.gradle), and the install script asks the TV for
 `ro.build.version.sdk` before it builds, so an older set is told both numbers instead of failing at
 `pm install` (see [Troubleshooting](docs/TROUBLESHOOTING.md) for what is left on such a set).
@@ -513,7 +513,7 @@ The **TV** needs Android 8.0 (API 26) or newer: `minSdk` is a compile-time floor
 | **Themes** | Background, wallpaper and layout from a `config.json` pushed over Wi-Fi, no rebuild. eight ship in [`themes/`](themes/), the built-in `default/` included |
 | **25 languages** | Follows the TV's language, with a fully mirrored right-to-left layout for Hebrew |
 | **App library** | Optional: browse every installed app and add or remove Home shortcuts. See [the app library guide](docs/app-library.md) |
-| **Tile menu** | Optional (`tile_menu`): hold OK on a tile for Move, Remove from Home and App info. Off, holding OK opens App info |
+| **Tile menu** | On in this fork (`tile_menu`): hold OK on a tile for Add to dock / Replace in dock, Move, Remove from Home and App info. |
 | **Module cards** | Any TV app can offer its own tile; you approve each one once. See [`docs/modules.md`](docs/modules.md) |
 | **Add-ons** | Optional apps that plug in as module cards, kept in [`addons/`](addons/) and never built into the launcher |
 | **Clock screensaver** | A drifting clock over the glow, so nothing burns in |

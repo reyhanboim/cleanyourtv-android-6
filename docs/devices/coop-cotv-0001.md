@@ -7,7 +7,7 @@ re-applied the list in batches. That second half is why this note exists — the
 `docs/TROUBLESHOOTING.md` had said a set stuck this way was unrecoverable.
 
 > **Warning:** `com.haiersoft.launcherproject2995hk` is the only Home app on this build, and the repo
-> launcher needs Android 8.0 (minSdk 26) where this set is SDK 19, so nothing can replace it. Disable
+> launcher needs Android 6.0 (minSdk 23) where this set is SDK 19, so nothing can replace it. Disable
 > it and every boot stops on `INICIALIZANDO`. `com.tsb.tv` looks unrelated and is a dependency of that
 > launcher: disabling it crash-loops the launcher instead.
 
@@ -40,7 +40,7 @@ re-applied the list in batches. That second half is why this note exists — the
 17 packages were disabled with `pm disable-user --user 0`, each one echoing `new state: disabled-user`,
 and `pm list packages -d` read back all 17. The factory launcher
 `com.haiersoft.launcherproject2995hk` was among them and no replacement was installed, because the
-repo launcher cannot run below Android 8.0. After a power cycle the set sat on the green Android robot
+repo launcher cannot run below Android 6.0 (API 23) where this set is SDK 19. After a power cycle the set sat on the green Android robot
 with `INICIALIZANDO` for 20+ minutes, and stayed there across a hard power cut and another off/on from
 the remote.
 
@@ -109,7 +109,7 @@ updater.
 - Nothing here says other `rtd298x` builds behave the same, and nothing was tested about
   `com.realtek.*` packages beyond the two above.
 - `com.rtk.engmenu` was deliberately left untouched.
-- The launcher half is impossible on this set: minSdk 26 against SDK 19. Lowering minSdk is a source
+- The launcher half is impossible on this set: minSdk 23 against SDK 19. Lowering minSdk is a source
   change, and an APK rebuilt elsewhere is not something this repo verifies.
 
 ## What to do differently

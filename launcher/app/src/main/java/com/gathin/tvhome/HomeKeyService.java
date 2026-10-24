@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -69,7 +70,7 @@ public class HomeKeyService extends AccessibilityService {
         // locked at boot, writes accessibility_enabled=0 and, on TCL G03 firmware, never binds it after the
         // unlock. Config.load reads credential-protected storage, so wait for the unlock before reading it.
         UserManager users = getSystemService(UserManager.class);
-        if (users.isUserUnlocked()) {
+        if (isUserUnlocked(users)) {
             loadConfig();
             return;
         }
@@ -82,10 +83,15 @@ public class HomeKeyService extends AccessibilityService {
         };
         registerReceiver(unlockReceiver, new IntentFilter(Intent.ACTION_USER_UNLOCKED));
         // The unlock may have happened between the check and the registration.
-        if (users.isUserUnlocked()) {
+        if (isUserUnlocked(users)) {
             stopWaitingForUnlock();
             loadConfig();
         }
+    }
+
+    /** Direct boot arrived in Android 7 (API 24); before it the user is always unlocked. */
+    private static boolean isUserUnlocked(UserManager users) {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.N || users.isUserUnlocked();
     }
 
     private void stopWaitingForUnlock() {

@@ -14,6 +14,13 @@ export MSYS_NO_PATHCONV=1
 # number comes from the build file, so it follows the launcher instead of a hard-coded copy here.
 MIN_SDK=$(sed -n 's/^[[:space:]]*minSdk[[:space:]][[:space:]]*\([0-9]\{1,3\}\)[[:space:]]*$/\1/p' app/build.gradle 2>/dev/null | head -n 1 || true)
 TV_SDK=$("$PY" -I "$TOOLS/tv.py" 'getprop ro.build.version.sdk' 2>/dev/null | tr -dc '0-9' || true)
+# Build under another package when the firmware only starts a fixed name (see
+# docs/devices/molly-player-fiberhome-home.md). The Java classes stay com.gathin.tvhome.
+LAUNCHER_APPLICATION_ID="${LAUNCHER_APPLICATION_ID:-}"
+LAUNCHER_PKG="${LAUNCHER_APPLICATION_ID:-com.gathin.tvhome}"
+START_COMPONENT="$LAUNCHER_PKG/com.gathin.tvhome.MainActivity"
+# What this firmware starts when Home is pressed, when it is not the package's own MainActivity.
+HOME_COMPONENT="${HOME_COMPONENT:-$START_COMPONENT}"
 if [ -n "$MIN_SDK" ] && [ -n "$TV_SDK" ] && [ "$TV_SDK" -lt "$MIN_SDK" ]; then
   echo "ERROR: this TV runs SDK $TV_SDK and the launcher is built with minSdk $MIN_SDK (app/build.gradle)," >&2
   echo "so pm install would answer INSTALL_FAILED_OLDER_SDK. Nothing was built, pushed or disabled." >&2
@@ -50,7 +57,38 @@ export PATH="$JAVA_HOME/bin:$PATH"
 # syntax is incorrect"), and since the file is only written when missing, build-and-install.ps1 kept failing
 # on it too. Forward slashes work everywhere.
 [ -f local.properties ] || echo "sdk.dir=$(printf '%s' "$ANDROID_HOME" | tr '\\' '/')" > local.properties
-./gradlew assembleRelease -q --console=plain
+if [ -n "$LAUNCHER_APPLICATION_ID" ]; then
+  ./gradlew assembleRelease -q --console=plain -PlauncherApplicationId="$LAUNCHER_APPLICATION_ID"
+else
+  ./gradlew assembleRelease -q --console=plain
+fi
+# Android 6 has no `cmd` (it arrived with Android 7), so the newer set-home-activity path below cannot
+# run there. Install, start and leave both launchers enabled; the Home choice is the TV's own.
+if [ -n "$TV_SDK" ] && [ "$TV_SDK" -lt 24 ]; then
+  APK=app/build/outputs/apk/release/app-release.apk
+  "$PY" -I ../tools/b64push.py "$APK" /data/local/tmp/tvhome.apk
+  OUT=$("$PY" -I ../tools/tv.py 'pm install -r /data/local/tmp/tvhome.apk; rm -f /data/local/tmp/tvhome.apk')
+  echo "$OUT"
+  case "$OUT" in
+    *Success*) ;;
+    *) echo "ERROR: pm install failed; the stock launcher was left untouched." >&2; exit 1 ;;
+  esac
+  "$PY" -I ../tools/tv.py "pm grant $LAUNCHER_PKG android.permission.ACCESS_FINE_LOCATION 2>/dev/null; echo location-granted"
+  START_OUT=$("$PY" -I ../tools/tv.py "am start -W -a android.intent.action.MAIN -c android.intent.category.HOME -n $START_COMPONENT")
+  echo "$START_OUT"
+  if ! printf '%s' "$START_OUT" | grep -qF 'Status: ok' || printf '%s' "$START_OUT" | grep -qi '^Error'; then
+    echo "ERROR: the new launcher did not start (see above); nothing was disabled." >&2
+    exit 1
+  fi
+  if [ "$HOME_COMPONENT" != "$START_COMPONENT" ]; then
+    "$PY" -I ../tools/tv.py "am start -W -n $HOME_COMPONENT" >/dev/null 2>&1 || true
+    echo "Home key target on this firmware: $HOME_COMPONENT"
+  else
+    echo "SDK $TV_SDK has no set-home-activity: press Home and pick this launcher with 'Always'."
+  fi
+  echo "Installed as $LAUNCHER_PKG. Press Home on the remote to see it."
+  exit 0
+fi
 # Which app owns Home differs by build (com.google.android.tvlauncher on Android TV,
 # com.google.android.apps.tv.launcherx on newer Google TV), so ask the TV instead of guessing.
 # Only a launcher we recognise is accepted: the answer can also be Android's chooser ("android"),
@@ -65,7 +103,7 @@ if [ -z "${STOCK_LAUNCHER:-}" ]; then
   case " $KNOWN_STOCK_LAUNCHERS " in
     *" $HOME_PKG "*) STOCK_LAUNCHER=$HOME_PKG ;;
     *)
-      if [ "$HOME_PKG" = com.gathin.tvhome ]; then
+      if [ "$HOME_PKG" = "$LAUNCHER_PKG" ]; then
         STOCK_LAUNCHER=none; echo "Home already belongs to this launcher; nothing will be disabled."
       elif [ "$HOME_PKG" = android ]; then
         # Android's chooser: two or more launchers tie and no default is set, which is where a TV lands
@@ -117,12 +155,12 @@ esac
 # HDMI picture on screen (#1101). `am start` below would only reuse it, so stop it first; the start
 # then creates a fresh one. A force stop also takes the key helpers off the enabled list, so a helper
 # that was on is written back (cleared first: Android binds again only when the list changes).
-"$PY" -I ../tools/tv.py 's=$(settings get secure enabled_accessibility_services); a=$(settings get secure accessibility_enabled); am force-stop com.gathin.tvhome; case "$s" in *com.gathin.tvhome*) settings put secure enabled_accessibility_services ""; settings put secure enabled_accessibility_services "$s"; settings put secure accessibility_enabled "$a" ;; esac' >/dev/null
+"$PY" -I ../tools/tv.py "s=\$(settings get secure enabled_accessibility_services); a=\$(settings get secure accessibility_enabled); am force-stop $LAUNCHER_PKG; case \"\$s\" in *$LAUNCHER_PKG*) settings put secure enabled_accessibility_services \"\"; settings put secure enabled_accessibility_services \"\$s\"; settings put secure accessibility_enabled \"\$a\" ;; esac" >/dev/null
 # Start the launcher on its own, before the stock Home is touched. In the batch below a start that
 # fails only prints an "Error:" line, and the stock launcher would be disabled anyway, leaving the TV
 # with no usable Home (#239). "Status: ok" from `am start -W` means the activity really came up;
 # the HOME resolution further down only names a component, it does not prove the activity starts.
-START_OUT=$("$PY" -I ../tools/tv.py 'am start -W -a android.intent.action.MAIN -c android.intent.category.HOME -n com.gathin.tvhome/.MainActivity')
+START_OUT=$("$PY" -I ../tools/tv.py "am start -W -a android.intent.action.MAIN -c android.intent.category.HOME -n $START_COMPONENT")
 echo "$START_OUT"
 # Both halves matter: some builds answer "Status: ok" for a task that was merely brought to the
 # front, and an activity that cannot start still prints "Error: Activity not started".
@@ -131,10 +169,10 @@ if ! printf '%s' "$START_OUT" | grep -qF 'Status: ok' || printf '%s' "$START_OUT
   exit 1
 fi
 printf '%s\n' \
-  "pm grant com.gathin.tvhome android.permission.ACCESS_FINE_LOCATION 2>/dev/null; echo location-granted" \
-  "cmd package compile -m speed -f com.gathin.tvhome" \
+  "pm grant $LAUNCHER_PKG android.permission.ACCESS_FINE_LOCATION 2>/dev/null; echo location-granted" \
+  "cmd package compile -m speed -f $LAUNCHER_PKG" \
   "$DISABLE_STOCK" \
-  "cmd package set-home-activity --user 0 com.gathin.tvhome/.MainActivity" \
+  "cmd package set-home-activity --user 0 $START_COMPONENT" \
   | "$PY" -I ../tools/tv.py --batch
 
 # Home's owner, or an empty string when the TV cannot be reached (pipefail would otherwise make a
@@ -178,7 +216,7 @@ rollback_home() {
 # stock launcher back if it is not ours.
 HOME_NOW=$(query_home)
 case "$HOME_NOW" in
-  com.gathin.tvhome/*) echo "Home now resolves to $HOME_NOW" ;;
+  "$LAUNCHER_PKG"/*) echo "Home now resolves to $HOME_NOW" ;;
   *)
     if [ -z "$HOME_NOW" ]; then
       echo "ERROR: the TV stopped answering while Home was being switched, so the outcome is unknown." >&2
@@ -210,12 +248,12 @@ esac
 # already listed was refused while the APK was replaced, and binds again only once the list changes, so clear it,
 # switch accessibility off and write it back (as tools/theme.sh does).
 enable_service() {   # appends to enabled_accessibility_services without dropping other services
-  svc=com.gathin.tvhome/.$1
-  "$PY" -I ../tools/tv.py "cmd appops set com.gathin.tvhome AUTO_START allow 2>/dev/null; cmd appops set com.gathin.tvhome APP_AUTO_START allow 2>/dev/null; appops write-settings 2>/dev/null; s=\$(settings get secure enabled_accessibility_services); case \"\$s\" in *$1*) settings put secure enabled_accessibility_services ''; settings put secure accessibility_enabled 0; sleep 1; settings put secure enabled_accessibility_services \"\$s\" ;; null|'') settings put secure enabled_accessibility_services $svc ;; *) settings put secure enabled_accessibility_services \"\$s:$svc\" ;; esac; settings put secure accessibility_enabled 1; echo $1 enabled"
+  svc=$LAUNCHER_PKG/com.gathin.tvhome.$1
+  "$PY" -I ../tools/tv.py "cmd appops set $LAUNCHER_PKG AUTO_START allow 2>/dev/null; cmd appops set $LAUNCHER_PKG APP_AUTO_START allow 2>/dev/null; appops write-settings 2>/dev/null; s=\$(settings get secure enabled_accessibility_services); case \"\$s\" in *$1*) settings put secure enabled_accessibility_services ''; settings put secure accessibility_enabled 0; sleep 1; settings put secure enabled_accessibility_services \"\$s\" ;; null|'') settings put secure enabled_accessibility_services $svc ;; *) settings put secure enabled_accessibility_services \"\$s:$svc\" ;; esac; settings put secure accessibility_enabled 1; echo $1 enabled"
 }
 if [ "${INPUT_KEY_SERVICE:-0}" = 1 ]; then enable_service InputKeyService; fi
 if [ "${HOME_KEY_SERVICE:-0}" = 1 ]; then enable_service HomeKeyService; fi
 if [ "${RESTORE_KEY_SERVICES:-0}" = 1 ]; then
-  "$PY" -I ../tools/tv.py "pm grant com.gathin.tvhome android.permission.WRITE_SECURE_SETTINGS && echo restore-granted"
+  "$PY" -I ../tools/tv.py "pm grant $LAUNCHER_PKG android.permission.WRITE_SECURE_SETTINGS && echo restore-granted"
 fi
 echo "Installed. Press Home on the remote to see it."

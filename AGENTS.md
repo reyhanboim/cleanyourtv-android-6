@@ -4,6 +4,21 @@ Instructions for coding agents (Claude Code, Codex, Gemini CLI, Cursor, Copilot 
 this repository. People should start with [README.md](README.md) and [CONTRIBUTING.md](CONTRIBUTING.md);
 this file repeats their rules in the form an agent needs, and links to them for the detail.
 
+## This fork: cleanyourtv-android-6
+
+This fork keeps the upstream launcher runnable on **Android 6.0 (API 23)** instead of requiring
+Android 8.0 (API 26). The differences from upstream are deliberately small:
+
+- `launcher/app/build.gradle` uses `minSdk 23` and core-library desugaring for `java.time`.
+- API 24+ calls have fallbacks for API 23 (locales, TV input names, network callbacks, changed
+  packages, hardware bitmaps, font resources).
+- The launcher can be built under a firmware's expected package name with
+  `-PlauncherApplicationId=<package>` and an explicit `HOME_COMPONENT` for Android 6, where
+  `cmd package set-home-activity` does not exist. The first recorded case is
+  [`docs/devices/molly-player-fiberhome-home.md`](docs/devices/molly-player-fiberhome-home.md).
+- Everything else (the safety rules, the debloat procedure, the tools and tests) follows upstream.
+  Do not raise `minSdk` back to 26 in this fork; that is upstream's policy, not this fork's.
+
 ## First: which job are you doing?
 
 | You were asked to | Do this |
@@ -50,8 +65,8 @@ this file repeats their rules in the form an agent needs, and links to them for 
 - **Close ADB afterwards.** USB debugging and Network/ADB debugging off, authorisations revoked, reboot,
   then `tools/adb-closed.py <tv ip>` must report the port closed. Port 5555 is plaintext.
 - **Stop and say so** when the TV refuses: `pm disable-user` refused for every package, a sideload that
-  fails verification, or an SDK below the launcher's `minSdk` 26. Do not retry in a loop, and do not lower
-  `minSdk` or hand over an APK built elsewhere.
+  fails verification, or an SDK below this fork's `minSdk` 23. Do not retry in a loop, and do not hand
+  over an APK built from another tree: build it here, where the Android 6 fallbacks live.
 
 The person's backups (`backup/`), screenshots (`shots/`), notes (`work/`) and the ADB key
 (`tools/adbkey/`) are listed in `.gitignore` and must never be committed. If the person wants to
@@ -69,7 +84,7 @@ share their TV's list afterwards, follow [`docs/workflows/tv-list.md`](docs/work
 | `CODE_OF_CONDUCT.md` | Includes the rule against publishing device identifiers, Wi-Fi names and IPs. |
 | `examples/` | One folder per tested TV model: `debloat.txt`, sometimes a `README.md` and a `config.json`. Indexed in `examples/README.md`. |
 | `docs/` | `docs/TROUBLESHOOTING.md`, the module-card contract (`docs/modules.md`), `docs/devices/` for models with notes but no tested list, and the [workflows](#workflows). |
-| `launcher/` | The reference launcher, package `com.gathin.tvhome`: plain Java, AndroidX RecyclerView and DynamicAnimation, `minSdk` 26, no `INTERNET` permission. |
+| `launcher/` | The reference launcher, package `com.gathin.tvhome`: plain Java, AndroidX RecyclerView and DynamicAnimation, `minSdk` 23 (Android 6.0), no `INTERNET` permission. |
 | `themes/` | One folder per theme: `config.json`, a required `screenshot.jpg`, optional wallpapers. Keys are documented in `themes/README.md`. |
 | `addons/` | Optional module-card apps, each its own Gradle project, never built into the launcher. |
 | `tools/` | The ADB client (`tv.py`) and the scripts, listed in the README's Tools table. Shell scripts have PowerShell twins. Each script's usage is in its first lines, and the larger ones have a guide beside them (`tools/*.md`): read it before running the script. |
@@ -88,7 +103,7 @@ The core stays small on purpose. Pick the smallest home that fits (CONTRIBUTING,
 | A small launcher switch that is off by default | A pull request here: see [`docs/workflows/launcher-switch.md`](docs/workflows/launcher-switch.md) |
 | A new look: colours, wallpaper, dock, columns, that existing config keys can carry | `themes/<name>/` |
 | A widget or tile that can be its own small app | `addons/<name>/`, as a module card that never touches `launcher/` |
-| A whole new launcher, a heavy restyle, a port to another platform, a lower `minSdk`, new permissions or network access, Fire TV Home takeover, a changed default for every TV | Your own repository, plus one row in `SHOWCASE.md` |
+| A whole new launcher, a heavy restyle, a port to another platform, a `minSdk` below 23, new permissions or network access, Fire TV Home takeover, a changed default for every TV | Your own repository, plus one row in `SHOWCASE.md` |
 | Safety rules in `PROMPT.md`, the Home-safety logic in the scripts, protected packages, CI and workflows, the APK size gate | Open an issue for the maintainer; do not change it in a PR |
 
 Every PR is reviewed by the maintainer and by a bot that apply `.github/maintainer/MAINTAINER.md`: read its
@@ -116,8 +131,8 @@ use it and ends with the check to run.
 | Check | Command or rule |
 |---|---|
 | Tests, as CI runs them | `python3 -m unittest discover -s tests -v` after `python3 -m venv tools/venv` and `tools/venv/bin/pip install -r tools/requirements.txt`. On `main`, CI sets `CLEANYOURTV_STRICT=1`, which also checks the README's TV-model count. |
-| Launcher, if you touched `launcher/` | JDK 17, Android SDK platform 34, build-tools 34.0.0. In `launcher/`: `./gradlew --no-daemon testReleaseUnitTest lintRelease assembleRelease`. Lint must stay at zero errors. |
-| APK size gate | `launcher/app/build/outputs/apk/release/app-release.apk` must be under 524,288 B (512 KB). Linux: `stat -c %s`, macOS: `stat -f %z`. |
+| Launcher, if you touched `launcher/` | JDK 17, Android SDK platform 34, build-tools 34.0.0. In `launcher/`: `./gradlew --no-daemon testReleaseUnitTest lintRelease assembleRelease`. Lint must stay at zero errors. For this STB's package-name Home hook: `./gradlew assembleRelease -PlauncherApplicationId=com.fiberhome.fhlauncher_cuxj`. |
+| APK size gate | `launcher/app/build/outputs/apk/release/app-release.apk` must be under 1,048,576 B (1024 KB); API 23 desugaring adds about 200 KB. Linux: `stat -c %s`, macOS: `stat -f %z`. |
 | README rows | A new list has its row in `README.md` and `examples/README.md`; a theme in `themes/README.md`; an add-on in `addons/README.md`. |
 | One topic per PR | A TV list never rides inside a launcher feature PR. A device's list plus small fixes for that same device can be one PR. |
 | Tested on | Say which TV, Android version and firmware you tested on, in the PR template's "Tested on" line. |
@@ -150,7 +165,7 @@ Never do these in a PR:
   workflow that builds or publishes releases is closed.
 - **No root, no getting around app-store protection, no private builds** others cannot reproduce from this repo.
 - **No extras added to the PROMPT flow** beyond debloating and the launcher.
-- **Don't relax `minSdk`** (26) or the launcher's permissions; those are forks for `SHOWCASE.md`.
+- **Don't raise `minSdk` above 23** or add launcher permissions; this fork exists for Android 6.0.
 - **Blur or crop** Wi-Fi names, people's names and cities (the top bar, a theme's `greeting_name`) before a
   screenshot goes anywhere public. No TV Settings screenshots that show accounts, emails or device names.
   From `tools/tv.py --probe`, `getprop` and backups, quote only the model, Android version and firmware build.

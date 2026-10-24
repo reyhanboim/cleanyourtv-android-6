@@ -99,6 +99,13 @@
             </intent-filter>
         </activity>
 
+        <!-- This firmware's Home key starts com.fiberhome.fhlauncher_cuxj/.LauncherActivity by name.
+             An alias under the installed package makes that explicit start open this launcher. -->
+        <activity-alias
+            android:name="com.fiberhome.fhlauncher_cuxj.LauncherActivity"
+            android:targetActivity="com.gathin.tvhome.MainActivity"
+            android:exported="true" />
+
         <activity
             android:name=".LauncherSettingsActivity"
             android:exported="false"
